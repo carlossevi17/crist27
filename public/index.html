@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crist2027 Fest</title>
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Background Blur Elements -->
+  <div class="glass-bg-glow glow-1"></div>
+  <div class="glass-bg-glow glow-2"></div>
+
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen" class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="logo-icon">
+          <i data-lucide="layers"></i>
+        </div>
+        <h1>Crist2027 Fest</h1>
+        <p>Votaciones y Tablero Kanban en tiempo real</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="tab-login-btn" class="auth-tab active" onclick="switchAuthTab('login')">Iniciar Sesión</button>
+        <button id="tab-register-btn" class="auth-tab" onclick="switchAuthTab('register')">Registrarse</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+        <div class="input-group">
+          <label for="login-username">Usuario</label>
+          <div class="input-wrapper">
+            <i data-lucide="user"></i>
+            <input type="text" id="login-username" placeholder="Tu usuario (ej: admin o user)" required>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="login-password">Contraseña</label>
+          <div class="input-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="login-password" placeholder="Tu contraseña" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">
+          Ingresar <i data-lucide="arrow-right"></i>
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="auth-form hidden" onsubmit="handleRegister(event)">
+        <div class="input-group">
+          <label for="register-username">Usuario</label>
+          <div class="input-wrapper">
+            <i data-lucide="user"></i>
+            <input type="text" id="register-username" placeholder="Nuevo usuario" required>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="register-password">Contraseña</label>
+          <div class="input-wrapper">
+            <i data-lucide="lock"></i>
+            <input type="password" id="register-password" placeholder="Mínimo 6 caracteres" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-success btn-block">
+          Crear cuenta <i data-lucide="user-plus"></i>
+        </button>
+      </form>
+      <div id="auth-error" class="alert alert-error hidden"></div>
+      <div id="auth-success" class="alert alert-success hidden"></div>
+    </div>
+  </div>
+
+  <!-- APP SCREEN -->
+  <div id="app-screen" class="app-container hidden">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <i data-lucide="layers" class="logo-svg"></i>
+          <span>Crist2027 Fest</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" id="nav-polls" onclick="switchAppTab('polls')">
+          <i data-lucide="vote"></i>
+          <span>Encuestas / Votaciones</span>
+        </button>
+        <button class="nav-item" id="nav-kanban" onclick="switchAppTab('kanban')">
+          <i data-lucide="kanban"></i>
+          <span>Tablero Kanban</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-badge">
+          <div class="user-avatar" id="header-user-avatar">U</div>
+          <div class="user-info">
+            <span class="user-name" id="header-username">Usuario</span>
+            <span class="user-role" id="header-user-role">Role</span>
+          </div>
+        </div>
+        <button class="btn btn-logout" onclick="handleLogout()">
+          <i data-lucide="log-out"></i>
+          <span>Cerrar Sesión</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top header -->
+      <header class="content-header">
+        <div class="header-title">
+          <h2 id="tab-title">Votaciones & Encuestas</h2>
+          <p id="tab-subtitle">Consulta o participa en los votos del equipo</p>
+        </div>
+        <div class="header-actions">
+          <button id="btn-create-poll" class="btn btn-primary hidden" onclick="openCreatePollModal()">
+            <i data-lucide="plus"></i> Nueva Encuesta
+          </button>
+          <button id="btn-create-task" class="btn btn-primary hidden" onclick="openCreateTaskModal()">
+            <i data-lucide="plus"></i> Nueva Tarea
+          </button>
+        </div>
+      </header>
+
+      <!-- POLLS VIEW -->
+      <section id="polls-view" class="view-section">
+        <div id="polls-grid" class="polls-grid">
+          <!-- Polls injected here dynamically -->
+        </div>
+      </section>
+
+      <!-- KANBAN VIEW -->
+      <section id="kanban-view" class="view-section hidden">
+        <div class="kanban-filter-bar">
+          <label for="kanban-filter-assigned">Filtrar por Asignado:</label>
+          <select id="kanban-filter-assigned" onchange="filterKanbanTasks()">
+            <option value="all" selected>Todos</option>
+            <option value="me">Mis tareas</option>
+            <!-- Users dynamically injected -->
+          </select>
+        </div>
+        <div class="kanban-board">
+          <!-- Pending Column -->
+          <div class="kanban-column" id="col-pending" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'pending')">
+            <div class="column-header">
+              <span class="column-title">Pendiente</span>
+              <span class="column-count" id="count-pending">0</span>
+            </div>
+            <div class="column-body" id="tasks-pending">
+              <!-- Tasks will be injected here -->
+            </div>
+          </div>
+
+          <!-- In Progress Column -->
+          <div class="kanban-column" id="col-in_progress" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'in_progress')">
+            <div class="column-header">
+              <span class="column-title">En Curso</span>
+              <span class="column-count" id="count-in_progress">0</span>
+            </div>
+            <div class="column-body" id="tasks-in_progress">
+              <!-- Tasks will be injected here -->
+            </div>
+          </div>
+
+          <!-- Completed Column -->
+          <div class="kanban-column" id="col-completed" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'completed')">
+            <div class="column-header">
+              <span class="column-title">Completado</span>
+              <span class="column-count" id="count-completed">0</span>
+            </div>
+            <div class="column-body" id="tasks-completed">
+              <!-- Tasks will be injected here -->
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODALS -->
+
+  <!-- Create Poll Modal -->
+  <div id="create-poll-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Crear Nueva Encuesta</h3>
+        <button class="btn-close-modal" onclick="closeCreatePollModal()"><i data-lucide="x"></i></button>
+      </div>
+      <form id="create-poll-form" onsubmit="handleCreatePoll(event)">
+        <div class="input-group">
+          <label for="poll-question">Pregunta o Tema</label>
+          <input type="text" id="poll-question" placeholder="¿Qué quieres consultar al equipo?" required>
+        </div>
+        <div class="input-group">
+          <label for="poll-type">Tipo de Votación</label>
+          <select id="poll-type" onchange="toggleMaxChoices()" required>
+            <option value="single" selected>Voto único (Solo se puede elegir una opción)</option>
+            <option value="multiple">Voto múltiple (Se pueden elegir varias opciones)</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Opciones</label>
+          <div id="poll-options-container">
+            <input type="text" class="poll-option-input" placeholder="Opción 1" required>
+            <input type="text" class="poll-option-input" placeholder="Opción 2" required>
+          </div>
+          <button type="button" class="btn btn-outline btn-xs" style="margin-top: 8px;" onclick="addPollOptionField()">
+            <i data-lucide="plus"></i> Agregar opción
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeCreatePollModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Encuesta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Task Modal -->
+  <div id="create-task-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Crear Nueva Tarea</h3>
+        <button class="btn-close-modal" onclick="closeCreateTaskModal()"><i data-lucide="x"></i></button>
+      </div>
+      <form id="create-task-form" onsubmit="handleCreateTask(event)">
+        <div class="input-group">
+          <label for="task-title">Título de la tarea</label>
+          <input type="text" id="task-title" placeholder="Ej: Rediseñar navbar" required>
+        </div>
+        <div class="input-group">
+          <label for="task-description">Descripción</label>
+          <textarea id="task-description" placeholder="Detalla los requerimientos o notas de la tarea" rows="3"></textarea>
+        </div>
+        <div class="modal-row">
+          <div class="input-group">
+            <label for="task-duration">Duración estimada</label>
+            <input type="text" id="task-duration" placeholder="Ej: 3h, 2 días">
+          </div>
+          <div class="input-group">
+            <label for="task-importance">Prioridad</label>
+            <select id="task-importance" required>
+              <option value="low" selected>Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="task-assigned">Asignado a</label>
+          <select id="task-assigned">
+            <option value="">Sin asignar</option>
+            <!-- Users list injected dynamically -->
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeCreateTaskModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Tarea</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Client-side notification system -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

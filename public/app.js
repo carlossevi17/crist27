@@ -83,10 +83,23 @@ function showAppScreen() {
 
   // Show admin actions
   const btnCreatePoll = document.getElementById('btn-create-poll');
+  const pollsFilterBar = document.getElementById('polls-filter-bar');
+  const kanbanAdminWrapper = document.getElementById('kanban-admin-board-toggle-wrapper');
+  const pollAdminWrapper = document.getElementById('poll-admin-only-wrapper');
+  const taskAdminWrapper = document.getElementById('task-admin-only-wrapper');
+
   if (currentUser.role === 'admin') {
     btnCreatePoll.classList.remove('hidden');
+    pollsFilterBar.classList.remove('hidden');
+    kanbanAdminWrapper.classList.remove('hidden');
+    pollAdminWrapper.classList.remove('hidden');
+    taskAdminWrapper.classList.remove('hidden');
   } else {
     btnCreatePoll.classList.add('hidden');
+    pollsFilterBar.classList.add('hidden');
+    kanbanAdminWrapper.classList.add('hidden');
+    pollAdminWrapper.classList.add('hidden');
+    taskAdminWrapper.classList.add('hidden');
   }
 
   // Show task action (any user can create tasks)
@@ -199,7 +212,7 @@ function switchAppTab(tab) {
   if (tab === 'polls') {
     document.getElementById('nav-polls').classList.add('active');
     document.getElementById('polls-view').classList.remove('hidden');
-    document.getElementById('tab-title').textContent = 'Votaciones & Encuestas';
+    document.getElementById('tab-title').textContent = 'Encuestas';
     document.getElementById('tab-subtitle').textContent = 'Consulta o participa en los votos del equipo';
     if (currentUser.role === 'admin') {
       document.getElementById('btn-create-poll').classList.remove('hidden');
@@ -207,8 +220,9 @@ function switchAppTab(tab) {
     loadPolls();
   } else if (tab === 'kanban') {
     document.getElementById('nav-kanban').classList.add('active');
+    document.getElementById('nav-kanban').classList.add('active');
     document.getElementById('kanban-view').classList.remove('hidden');
-    document.getElementById('tab-title').textContent = 'Tablero Kanban';
+    document.getElementById('tab-title').textContent = 'Tareas';
     document.getElementById('tab-subtitle').textContent = 'Gestiona, asigna y arrastra las tareas de tu equipo';
     document.getElementById('btn-create-task').classList.remove('hidden');
     loadKanban();
@@ -216,75 +230,104 @@ function switchAppTab(tab) {
 }
 
 // POLLS MODULE
+let allPolls = [];
+
 async function loadPolls() {
   const grid = document.getElementById('polls-grid');
   grid.innerHTML = '<p class="text-muted">Cargando encuestas...</p>';
 
   try {
-    const polls = await apiFetch('/polls');
-    grid.innerHTML = '';
-
-    if (polls.length === 0) {
-      grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;"><p class="text-muted">No hay encuestas creadas en este momento.</p></div>';
-      return;
-    }
-
-    polls.forEach(poll => {
-      const card = document.createElement('div');
-      card.className = 'poll-card';
-
-      // Header info
-      const typeBadge = poll.type === 'multiple' ? 'Voto Múltiple' : 'Voto Único';
-      let headerHTML = `
-        <div class="poll-card-header">
-          <h4 class="poll-question">${escapeHTML(poll.question)}</h4>
-          <span class="poll-badge">${typeBadge}</span>
-        </div>
-        <div class="poll-options" id="options-poll-${poll.id}">
-      `;
-
-      // Options rendering
-      poll.options.forEach(opt => {
-        const isVoted = poll.userVotes.includes(opt.id);
-        const inputType = poll.type === 'multiple' ? 'checkbox' : 'radio';
-        
-        headerHTML += `
-          <div class="poll-option-row ${isVoted ? 'voted' : ''}" onclick="toggleOptionSelect(this, ${poll.id}, ${opt.id}, '${poll.type}')">
-            <div class="poll-option-bar" style="width: ${opt.percentage}%"></div>
-            <div class="poll-option-content">
-              <span class="poll-option-text">
-                <input type="${inputType}" name="poll-opt-${poll.id}" value="${opt.id}" ${isVoted ? 'checked' : ''} onclick="event.stopPropagation()">
-                ${escapeHTML(opt.option_text)}
-              </span>
-              <span class="poll-option-percent">${opt.percentage}% (${opt.votesCount})</span>
-            </div>
-          </div>
-        `;
-      });
-
-      headerHTML += `
-        </div>
-        <div class="poll-footer">
-          <span>Votos totales: ${poll.totalVotes}</span>
-          <span>${poll.userVoted ? '¡Ya has votado!' : 'No has votado aún'}</span>
-        </div>
-      `;
-
-      // Submission button
-      headerHTML += `
-        <button class="btn btn-primary btn-block poll-vote-btn" onclick="submitPollVote(${poll.id}, '${poll.type}')">
-          Enviar Voto <i data-lucide="send"></i>
-        </button>
-      `;
-
-      card.innerHTML = headerHTML;
-      grid.appendChild(card);
-    });
-
-    lucide.createIcons();
+    allPolls = await apiFetch('/polls');
+    filterPolls();
   } catch (error) {
     showToast(error.message, 'error');
   }
+}
+
+function filterPolls() {
+  const scope = document.getElementById('polls-scope').value;
+  let filtered = [];
+
+  if (currentUser.role === 'admin') {
+    if (scope === 'admin') {
+      filtered = allPolls.filter(poll => poll.is_admin_only === true);
+    } else {
+      // General/Public
+      filtered = allPolls.filter(poll => !poll.is_admin_only);
+    }
+  } else {
+    filtered = allPolls; // Standard users only receive public ones
+  }
+
+  renderPolls(filtered);
+}
+
+function renderPolls(polls) {
+  const grid = document.getElementById('polls-grid');
+  grid.innerHTML = '';
+
+  if (polls.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;"><p class="text-muted">No hay encuestas en esta sección.</p></div>';
+    return;
+  }
+
+  polls.forEach(poll => {
+    const card = document.createElement('div');
+    card.className = 'poll-card';
+
+    // Header info
+    const typeBadge = poll.type === 'multiple' ? 'Voto Múltiple' : 'Voto Único';
+    const adminBadge = poll.is_admin_only ? ' <span class="poll-badge" style="background:var(--danger-glow);color:var(--danger)">Admin</span>' : '';
+    let headerHTML = `
+      <div class="poll-card-header">
+        <h4 class="poll-question">${escapeHTML(poll.question)}</h4>
+        <div style="display:flex;gap:6px;">
+          ${adminBadge}
+          <span class="poll-badge">${typeBadge}</span>
+        </div>
+      </div>
+      <div class="poll-options" id="options-poll-${poll.id}">
+    `;
+
+    // Options rendering
+    poll.options.forEach(opt => {
+      const isVoted = poll.userVotes.includes(opt.id);
+      const inputType = poll.type === 'multiple' ? 'checkbox' : 'radio';
+      
+      headerHTML += `
+        <div class="poll-option-row ${isVoted ? 'voted' : ''}" onclick="toggleOptionSelect(this, ${poll.id}, ${opt.id}, '${poll.type}')">
+          <div class="poll-option-bar" style="width: ${opt.percentage}%"></div>
+          <div class="poll-option-content">
+            <span class="poll-option-text">
+              <input type="${inputType}" name="poll-opt-${poll.id}" value="${opt.id}" ${isVoted ? 'checked' : ''} onclick="event.stopPropagation()">
+              ${escapeHTML(opt.option_text)}
+            </span>
+            <span class="poll-option-percent">${opt.percentage}% (${opt.votesCount})</span>
+          </div>
+        </div>
+      `;
+    });
+
+    headerHTML += `
+      </div>
+      <div class="poll-footer">
+        <span>Votos totales: ${poll.totalVotes}</span>
+        <span>${poll.userVoted ? '¡Ya has votado!' : 'No has votado aún'}</span>
+      </div>
+    `;
+
+    // Submission button
+    headerHTML += `
+      <button class="btn btn-primary btn-block poll-vote-btn" onclick="submitPollVote(${poll.id}, '${poll.type}')">
+        Enviar Voto <i data-lucide="send"></i>
+      </button>
+    `;
+
+    card.innerHTML = headerHTML;
+    grid.appendChild(card);
+  });
+
+  lucide.createIcons();
 }
 
 function toggleOptionSelect(rowEl, pollId, optionId, pollType) {
@@ -363,6 +406,7 @@ async function handleCreatePoll(event) {
   const question = document.getElementById('poll-question').value;
   const type = document.getElementById('poll-type').value;
   const optionInputs = document.querySelectorAll('.poll-option-input');
+  const isAdminOnly = document.getElementById('poll-is-admin-only').checked;
   
   const options = Array.from(optionInputs)
     .map(input => input.value.trim())
@@ -376,7 +420,7 @@ async function handleCreatePoll(event) {
   try {
     await apiFetch('/polls', {
       method: 'POST',
-      body: JSON.stringify({ question, type, options })
+      body: JSON.stringify({ question, type, options, isAdminOnly })
     });
 
     showToast('Encuesta creada exitosamente.');
@@ -397,24 +441,27 @@ let allTasks = [];
 
 async function populateKanbanFilterDropdown() {
   const filterSelect = document.getElementById('kanban-filter-assigned');
-  // Keep the first two: "Todos" and "Mis tareas"
   filterSelect.innerHTML = `
     <option value="all">Todos</option>
     <option value="me">Mis tareas</option>
+    <option value="unassigned">Sin asignar</option>
   `;
-  try {
-    const users = await apiFetch('/users');
-    users.forEach(user => {
-      // Avoid adding current user again if they choose "me"
-      if (user.id !== currentUser.id) {
-        const opt = document.createElement('option');
-        opt.value = user.id;
-        opt.textContent = user.username;
-        filterSelect.appendChild(opt);
-      }
-    });
-  } catch (error) {
-    console.error('Error loading users for filter:', error);
+  
+  // Only add individual other users if current user is an admin
+  if (currentUser.role === 'admin') {
+    try {
+      const users = await apiFetch('/users');
+      users.forEach(user => {
+        if (user.id !== currentUser.id) {
+          const opt = document.createElement('option');
+          opt.value = user.id;
+          opt.textContent = user.username;
+          filterSelect.appendChild(opt);
+        }
+      });
+    } catch (error) {
+      console.error('Error loading users for filter:', error);
+    }
   }
 }
 
@@ -429,16 +476,30 @@ async function loadKanban() {
 }
 
 function filterKanbanTasks() {
-  const filterValue = document.getElementById('kanban-filter-assigned').value;
-  let filtered = [];
+  const assignedFilter = document.getElementById('kanban-filter-assigned').value;
+  const scopeFilter = document.getElementById('kanban-board-scope').value;
+  let filtered = allTasks;
 
-  if (filterValue === 'all') {
-    filtered = allTasks;
-  } else if (filterValue === 'me') {
-    filtered = allTasks.filter(task => task.assigned_to === currentUser.id);
+  // 1. Filter by scope
+  if (currentUser.role === 'admin') {
+    if (scopeFilter === 'admin') {
+      filtered = filtered.filter(task => task.is_admin_only === true);
+    } else {
+      filtered = filtered.filter(task => !task.is_admin_only);
+    }
   } else {
-    const userId = parseInt(filterValue);
-    filtered = allTasks.filter(task => task.assigned_to === userId);
+    // Normal user only sees general anyway
+    filtered = filtered.filter(task => !task.is_admin_only);
+  }
+
+  // 2. Filter by assignee
+  if (assignedFilter === 'me') {
+    filtered = filtered.filter(task => task.assigned_to === currentUser.id);
+  } else if (assignedFilter === 'unassigned') {
+    filtered = filtered.filter(task => !task.assigned_to);
+  } else if (assignedFilter !== 'all') {
+    const userId = parseInt(assignedFilter);
+    filtered = filtered.filter(task => task.assigned_to === userId);
   }
 
   renderKanbanTasks(filtered);
@@ -465,6 +526,7 @@ function renderKanbanTasks(tasks) {
     card.draggable = true;
     card.id = `task-${task.id}`;
     card.setAttribute('ondragstart', `handleDragStart(event, ${task.id})`);
+    card.setAttribute('onclick', `openEditTaskModal(${task.id})`);
 
     const importanceText = {
       low: 'Baja',
@@ -489,10 +551,10 @@ function renderKanbanTasks(tasks) {
       </div>
       <div class="task-actions">
         <div class="task-nav-buttons">
-          ${task.status !== 'pending' ? `<button class="btn-task-action" onclick="moveTaskBtn(${task.id}, '${task.status}', 'prev')"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i></button>` : ''}
-          ${task.status !== 'completed' ? `<button class="btn-task-action" onclick="moveTaskBtn(${task.id}, '${task.status}', 'next')"><i data-lucide="arrow-right" style="width:14px;height:14px;"></i></button>` : ''}
+          ${task.status !== 'pending' ? `<button class="btn-task-action" onclick="moveTaskBtn(event, ${task.id}, '${task.status}', 'prev')"><i data-lucide="arrow-left" style="width:14px;height:14px;"></i></button>` : ''}
+          ${task.status !== 'completed' ? `<button class="btn-task-action" onclick="moveTaskBtn(event, ${task.id}, '${task.status}', 'next')"><i data-lucide="arrow-right" style="width:14px;height:14px;"></i></button>` : ''}
         </div>
-        <button class="btn-task-action btn-task-delete" onclick="deleteTask(${task.id})">
+        <button class="btn-task-action btn-task-delete" onclick="deleteTask(event, ${task.id})">
           <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
         </button>
       </div>
@@ -536,7 +598,8 @@ async function handleDrop(event, status) {
 }
 
 // Mobile/Button change status mechanics
-async function moveTaskBtn(taskId, currentStatus, direction) {
+async function moveTaskBtn(event, taskId, currentStatus, direction) {
+  event.stopPropagation(); // Avoid opening edit modal
   let newStatus = currentStatus;
   if (currentStatus === 'pending') {
     if (direction === 'next') newStatus = 'in_progress';
@@ -558,7 +621,8 @@ async function moveTaskBtn(taskId, currentStatus, direction) {
   }
 }
 
-async function deleteTask(taskId) {
+async function deleteTask(event, taskId) {
+  event.stopPropagation(); // Avoid opening edit modal
   if (!confirm('¿Estás seguro de que quieres eliminar esta tarea?')) return;
   
   try {
@@ -585,7 +649,7 @@ async function openCreateTaskModal() {
     users.forEach(user => {
       const opt = document.createElement('option');
       opt.value = user.id;
-      opt.textContent = `${user.username} (${user.role === 'admin' ? 'Admin' : 'Usuario'})`;
+      opt.textContent = user.username;
       select.appendChild(opt);
     });
   } catch (error) {
@@ -606,6 +670,7 @@ async function handleCreateTask(event) {
   const duration = document.getElementById('task-duration').value;
   const importance = document.getElementById('task-importance').value;
   const assignedTo = document.getElementById('task-assigned').value;
+  const isAdminOnly = document.getElementById('task-is-admin-only').checked;
 
   try {
     await apiFetch('/tasks', {
@@ -615,12 +680,94 @@ async function handleCreateTask(event) {
         description,
         duration,
         importance,
-        assignedTo: assignedTo ? parseInt(assignedTo) : null
+        assignedTo: assignedTo ? parseInt(assignedTo) : null,
+        isAdminOnly
       })
     });
 
     showToast('Tarea creada correctamente.');
     closeCreateTaskModal();
+    loadKanban();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+// Edit Task Modal Handlers
+async function openEditTaskModal(taskId) {
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  document.getElementById('edit-task-modal').classList.remove('hidden');
+
+  // Fill in hidden ID
+  document.getElementById('edit-task-id').value = task.id;
+  document.getElementById('edit-task-title').value = task.title;
+  document.getElementById('edit-task-description').value = task.description || '';
+  document.getElementById('edit-task-duration').value = task.duration || '';
+  document.getElementById('edit-task-importance').value = task.importance;
+
+  // Toggle admin wrapper display
+  const adminWrapper = document.getElementById('edit-task-admin-only-wrapper');
+  const checkbox = document.getElementById('edit-task-is-admin-only');
+  checkbox.checked = !!task.is_admin_only;
+  if (currentUser.role === 'admin') {
+    adminWrapper.classList.remove('hidden');
+  } else {
+    adminWrapper.classList.add('hidden');
+  }
+
+  // Populate users list in edit modal
+  const select = document.getElementById('edit-task-assigned');
+  select.innerHTML = '<option value="">Sin asignar</option>';
+  
+  try {
+    const users = await apiFetch('/users');
+    users.forEach(user => {
+      const opt = document.createElement('option');
+      opt.value = user.id;
+      opt.textContent = user.username;
+      if (task.assigned_to === user.id) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  } catch (error) {
+    console.error('Error loading users list:', error);
+  }
+}
+
+function closeEditTaskModal() {
+  document.getElementById('edit-task-modal').classList.add('hidden');
+  document.getElementById('edit-task-form').reset();
+}
+
+async function handleEditTask(event) {
+  event.preventDefault();
+  
+  const taskId = document.getElementById('edit-task-id').value;
+  const title = document.getElementById('edit-task-title').value;
+  const description = document.getElementById('edit-task-description').value;
+  const duration = document.getElementById('edit-task-duration').value;
+  const importance = document.getElementById('edit-task-importance').value;
+  const assignedTo = document.getElementById('edit-task-assigned').value;
+  const isAdminOnly = document.getElementById('edit-task-is-admin-only').checked;
+
+  try {
+    await apiFetch(`/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title,
+        description,
+        duration,
+        importance,
+        assignedTo: assignedTo ? parseInt(assignedTo) : null,
+        isAdminOnly
+      })
+    });
+
+    showToast('Tarea actualizada correctamente.');
+    closeEditTaskModal();
     loadKanban();
   } catch (error) {
     showToast(error.message, 'error');

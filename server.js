@@ -108,7 +108,7 @@ app.get('/api/users', authenticate, async (req, res) => {
 // Polls Endpoints
 app.get('/api/polls', authenticate, async (req, res) => {
   try {
-    const polls = await db.getPollsWithResults(req.user.id);
+    const polls = await db.getPollsWithResults(req.user.id, req.user.role);
     res.json(polls);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -116,13 +116,13 @@ app.get('/api/polls', authenticate, async (req, res) => {
 });
 
 app.post('/api/polls', authenticate, requireAdmin, async (req, res) => {
-  const { question, type, options } = req.body;
+  const { question, type, options, isAdminOnly } = req.body;
   if (!question || !type || !options || !Array.isArray(options) || options.length < 2) {
     return res.status(400).json({ error: 'Datos de la encuesta inválidos. Debe tener pregunta y al menos 2 opciones.' });
   }
 
   try {
-    const pollId = await db.createPoll(question, type, options);
+    const pollId = await db.createPoll(question, type, options, !!isAdminOnly);
     res.status(201).json({ message: 'Encuesta creada correctamente', pollId });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -148,7 +148,7 @@ app.post('/api/polls/:id/vote', authenticate, async (req, res) => {
 // Kanban Endpoints
 app.get('/api/tasks', authenticate, async (req, res) => {
   try {
-    const tasks = await db.getTasks();
+    const tasks = await db.getTasks(req.user.role);
     res.json(tasks);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -156,14 +156,36 @@ app.get('/api/tasks', authenticate, async (req, res) => {
 });
 
 app.post('/api/tasks', authenticate, async (req, res) => {
-  const { title, description, duration, importance, assignedTo } = req.body;
+  const { title, description, duration, importance, assignedTo, isAdminOnly } = req.body;
   if (!title || !importance) {
     return res.status(400).json({ error: 'El título y la importancia son obligatorios.' });
   }
 
+  // Double check: Only admins can create admin-only tasks
+  const enforceAdminOnly = req.user.role === 'admin' ? !!isAdminOnly : false;
+
   try {
-    const result = await db.createTask(title, description, duration, importance, assignedTo, req.user.id);
+    const result = await db.createTask(title, description, duration, importance, assignedTo, req.user.id, enforceAdminOnly);
     res.status(201).json({ message: 'Tarea creada correctamente', taskId: result.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/tasks/:id', authenticate, async (req, res) => {
+  const taskId = parseInt(req.params.id);
+  const { title, description, duration, importance, assignedTo, isAdminOnly } = req.body;
+
+  if (!title || !importance) {
+    return res.status(400).json({ error: 'El título y la importancia son obligatorios.' });
+  }
+
+  // Only admins can make a task admin-only
+  const enforceAdminOnly = req.user.role === 'admin' ? !!isAdminOnly : false;
+
+  try {
+    await db.updateTask(taskId, title, description, duration, importance, assignedTo, enforceAdminOnly);
+    res.json({ message: 'Tarea actualizada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

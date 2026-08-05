@@ -1,149 +1,115 @@
 require('dotenv').config();
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.resolve(__dirname, process.env.DB_PATH || 'database.db');
-const db = new sqlite3.Database(dbPath);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
 
-// Helper function to run query
-function run(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve({ id: this.lastID, changes: this.changes });
-    });
-  });
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('ADVERTENCIA: SUPABASE_URL o SUPABASE_KEY no están definidas en el archivo .env.');
 }
 
-// Helper function to get single row
-function get(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
-}
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper function to get multiple rows
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
-}
-
-// Initialize Database
+// Initialize Database (Resolve immediately since Supabase handles its own schema)
 async function initDb() {
-  // Create tables
-  await run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin', 'user'))
-    )
-  `);
-
-  await run(`
-    CREATE TABLE IF NOT EXISTS polls (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      question TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('single', 'multiple')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await run(`
-    CREATE TABLE IF NOT EXISTS poll_options (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      poll_id INTEGER NOT NULL,
-      option_text TEXT NOT NULL,
-      FOREIGN KEY (poll_id) REFERENCES polls (id) ON DELETE CASCADE
-    )
-  `);
-
-  await run(`
-    CREATE TABLE IF NOT EXISTS votes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      poll_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      option_id INTEGER NOT NULL,
-      FOREIGN KEY (poll_id) REFERENCES polls (id) ON DELETE CASCADE,
-      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-      FOREIGN KEY (option_id) REFERENCES poll_options (id) ON DELETE CASCADE,
-      UNIQUE(poll_id, user_id, option_id)
-    )
-  `);
-
-  await run(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT,
-      duration TEXT,
-      importance TEXT NOT NULL CHECK(importance IN ('low', 'medium', 'high')),
-      status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed')),
-      assigned_to INTEGER,
-      created_by INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (assigned_to) REFERENCES users (id) ON DELETE SET NULL,
-      FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE CASCADE
-    )
-  `);
-
-  // Insert default users if table is empty
-  const usersCount = await get(`SELECT COUNT(*) as count FROM users`);
-  if (usersCount.count === 0) {
-    const adminPassword = await bcrypt.hash('admin123', 10);
-    const userPassword = await bcrypt.hash('user123', 10);
-
-    await run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ['admin', adminPassword, 'admin']);
-    await run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, ['user', userPassword, 'user']);
-    console.log('Database initialized with default users: admin/admin123 and user/user123');
-  }
+  console.log('Conectado a la base de datos de Supabase.');
 }
 
 module.exports = {
   initDb,
-  run,
-  get,
-  all,
   // Auth Functions
   async createUser(username, password, role) {
     const hashedPassword = await bcrypt.hash(password, 10);
-    return run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`, [username, hashedPassword, role]);
+    const { data, error } = await supabase
+      .from('users')
+      .insert([{ username, password: hashedPassword, role }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
+
   async getUserByUsername(username) {
-    return get(`SELECT * FROM users WHERE username = ?`, [username]);
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
   },
+
   async getUserById(id) {
-    return get(`SELECT id, username, role FROM users WHERE id = ?`, [id]);
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, role')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
   },
+
   async getAllUsers() {
-    return all(`SELECT id, username, role FROM users`);
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, role');
+
+    if (error) throw error;
+    return data;
   },
-  // Polls Functions
-  async createPoll(question, type, options) {
-    const result = await run(`INSERT INTO polls (question, type) VALUES (?, ?)`, [question, type]);
-    const pollId = result.id;
-    for (const option of options) {
-      await run(`INSERT INTO poll_options (poll_id, option_text) VALUES (?, ?)`, [pollId, option]);
-    }
+
+  async createPoll(question, type, options, isAdminOnly = false) {
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .insert([{ question, type, is_admin_only: isAdminOnly }])
+      .select()
+      .single();
+
+    if (pollError) throw pollError;
+    const pollId = poll.id;
+
+    const optionsToInsert = options.map(opt => ({
+      poll_id: pollId,
+      option_text: opt
+    }));
+
+    const { error: optError } = await supabase
+      .from('poll_options')
+      .insert(optionsToInsert);
+
+    if (optError) throw optError;
     return pollId;
   },
-  async getPollsWithResults(userId) {
-    const polls = await all(`SELECT * FROM polls ORDER BY created_at DESC`);
+
+  async getPollsWithResults(userId, userRole) {
+    let query = supabase.from('polls').select('*').order('created_at', { ascending: false });
+
+    if (userRole !== 'admin') {
+      query = query.or('is_admin_only.eq.false,is_admin_only.is.null');
+    }
+
+    const { data: polls, error: pollsError } = await query;
     const pollsWithDetails = [];
 
     for (const poll of polls) {
-      const options = await all(`SELECT * FROM poll_options WHERE poll_id = ?`, [poll.id]);
-      const votes = await all(`SELECT * FROM votes WHERE poll_id = ?`, [poll.id]);
+      const { data: options, error: optError } = await supabase
+        .from('poll_options')
+        .select('*')
+        .eq('poll_id', poll.id);
+      
+      if (optError) throw optError;
 
-      // Calculate results
+      const { data: votes, error: votesError } = await supabase
+        .from('votes')
+        .select('*')
+        .eq('poll_id', poll.id);
+
+      if (votesError) throw votesError;
+      
       const totalVotes = votes.length;
       const optionsWithVotes = options.map(opt => {
         const optVotes = votes.filter(v => v.option_id === opt.id).length;
@@ -154,7 +120,6 @@ module.exports = {
         };
       });
 
-      // Find user votes
       const userVotes = votes.filter(v => v.user_id === userId).map(v => v.option_id);
 
       pollsWithDetails.push({
@@ -170,36 +135,109 @@ module.exports = {
 
     return pollsWithDetails;
   },
+
   async submitVotes(pollId, userId, optionIds) {
     // Delete existing votes for this poll by this user
-    await run(`DELETE FROM votes WHERE poll_id = ? AND user_id = ?`, [pollId, userId]);
+    const { error: deleteError } = await supabase
+      .from('votes')
+      .delete()
+      .eq('poll_id', pollId)
+      .eq('user_id', userId);
 
+    if (deleteError) throw deleteError;
+    
     // Insert new votes
-    for (const optionId of optionIds) {
-      await run(`INSERT INTO votes (poll_id, user_id, option_id) VALUES (?, ?, ?)`, [pollId, userId, optionId]);
+    const votesToInsert = optionIds.map(optionId => ({
+      poll_id: pollId,
+      user_id: userId,
+      option_id: optionId
+    }));
+
+    const { error: insertError } = await supabase
+      .from('votes')
+      .insert(votesToInsert);
+
+    if (insertError) throw insertError;
+  },
+
+  async createTask(title, description, duration, importance, assignedTo, createdBy, isAdminOnly = false) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert([{
+        title,
+        description,
+        duration,
+        importance,
+        status: 'pending',
+        assigned_to: assignedTo || null,
+        created_by: createdBy,
+        is_admin_only: isAdminOnly
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getTasks(userRole) {
+    let query = supabase.from('tasks').select('*').order('created_at', { ascending: false });
+
+    if (userRole !== 'admin') {
+      query = query.or('is_admin_only.eq.false,is_admin_only.is.null');
     }
+
+    const { data: tasks, error: tasksError } = await query;
+
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, username');
+
+    if (usersError) throw usersError;
+
+    const userMap = {};
+    users.forEach(u => {
+      userMap[u.id] = u.username;
+    });
+
+    return tasks.map(task => ({
+      ...task,
+      assigned_to_username: task.assigned_to ? userMap[task.assigned_to] : null,
+      created_by_username: task.created_by ? userMap[task.created_by] : null
+    }));
   },
-  // Tasks Functions
-  async createTask(title, description, duration, importance, assignedTo, createdBy) {
-    return run(
-      `INSERT INTO tasks (title, description, duration, importance, status, assigned_to, created_by) 
-       VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-      [title, description, duration, importance, assignedTo || null, createdBy]
-    );
+
+  async updateTask(taskId, title, description, duration, importance, assignedTo, isAdminOnly) {
+    const { error } = await supabase
+      .from('tasks')
+      .update({
+        title,
+        description,
+        duration,
+        importance,
+        assigned_to: assignedTo || null,
+        is_admin_only: isAdminOnly
+      })
+      .eq('id', taskId);
+
+    if (error) throw error;
   },
-  async getTasks() {
-    return all(`
-      SELECT t.*, u.username as assigned_to_username, creator.username as created_by_username
-      FROM tasks t
-      LEFT JOIN users u ON t.assigned_to = u.id
-      LEFT JOIN users creator ON t.created_by = creator.id
-      ORDER BY t.created_at DESC
-    `);
-  },
+
   async updateTaskStatus(taskId, status) {
-    return run(`UPDATE tasks SET status = ? WHERE id = ?`, [status, taskId]);
+    const { error } = await supabase
+      .from('tasks')
+      .update({ status })
+      .eq('id', taskId);
+
+    if (error) throw error;
   },
+
   async deleteTask(taskId) {
-    return run(`DELETE FROM tasks WHERE id = ?`, [taskId]);
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', taskId);
+
+    if (error) throw error;
   }
 };

@@ -93,11 +93,11 @@
       <nav class="sidebar-nav">
         <button class="nav-item active" id="nav-polls" onclick="switchAppTab('polls')">
           <i data-lucide="vote"></i>
-          <span>Encuestas / Votaciones</span>
+          <span>Encuestas</span>
         </button>
         <button class="nav-item" id="nav-kanban" onclick="switchAppTab('kanban')">
           <i data-lucide="kanban"></i>
-          <span>Tablero Kanban</span>
+          <span>Tareas</span>
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -135,6 +135,13 @@
 
       <!-- POLLS VIEW -->
       <section id="polls-view" class="view-section">
+        <div id="polls-filter-bar" class="kanban-filter-bar hidden" style="margin-bottom: 24px;">
+          <label for="polls-scope">Ver encuestas:</label>
+          <select id="polls-scope" onchange="filterPolls()">
+            <option value="general" selected>Públicas</option>
+            <option value="admin">Privadas (Solo Admins)</option>
+          </select>
+        </div>
         <div id="polls-grid" class="polls-grid">
           <!-- Polls injected here dynamically -->
         </div>
@@ -142,13 +149,22 @@
 
       <!-- KANBAN VIEW -->
       <section id="kanban-view" class="view-section hidden">
-        <div class="kanban-filter-bar">
-          <label for="kanban-filter-assigned">Filtrar por Asignado:</label>
-          <select id="kanban-filter-assigned" onchange="filterKanbanTasks()">
-            <option value="all" selected>Todos</option>
-            <option value="me">Mis tareas</option>
-            <!-- Users dynamically injected -->
-          </select>
+        <div class="kanban-filter-bar" style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <div>
+            <label for="kanban-filter-assigned">Filtrar por Asignado:</label>
+            <select id="kanban-filter-assigned" onchange="filterKanbanTasks()">
+              <option value="all" selected>Todos</option>
+              <option value="me">Mis tareas</option>
+              <!-- Users dynamically injected -->
+            </select>
+          </div>
+          <div id="kanban-admin-board-toggle-wrapper" class="hidden">
+            <label for="kanban-board-scope">Tablero:</label>
+            <select id="kanban-board-scope" onchange="filterKanbanTasks()">
+              <option value="general" selected>General (Público)</option>
+              <option value="admin">Administrador (Privado)</option>
+            </select>
+          </div>
         </div>
         <div class="kanban-board">
           <!-- Pending Column -->
@@ -219,6 +235,11 @@
             <i data-lucide="plus"></i> Agregar opción
           </button>
         </div>
+        <div class="input-group" id="poll-admin-only-wrapper" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
+            <input type="checkbox" id="poll-is-admin-only" style="width: auto; margin-right: 4px;"> Solo visible para Administradores
+          </label>
+        </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeCreatePollModal()">Cancelar</button>
           <button type="submit" class="btn btn-primary">Crear Encuesta</button>
@@ -264,9 +285,65 @@
             <!-- Users list injected dynamically -->
           </select>
         </div>
+        <div class="input-group" id="task-admin-only-wrapper" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
+            <input type="checkbox" id="task-is-admin-only" style="width: auto; margin-right: 4px;"> Solo visible para Administradores
+          </label>
+        </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeCreateTaskModal()">Cancelar</button>
           <button type="submit" class="btn btn-primary">Crear Tarea</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Task Modal -->
+  <div id="edit-task-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Editar Tarea</h3>
+        <button class="btn-close-modal" onclick="closeEditTaskModal()"><i data-lucide="x"></i></button>
+      </div>
+      <form id="edit-task-form" onsubmit="handleEditTask(event)">
+        <input type="hidden" id="edit-task-id">
+        <div class="input-group">
+          <label for="edit-task-title">Título de la tarea</label>
+          <input type="text" id="edit-task-title" placeholder="Ej: Rediseñar navbar" required>
+        </div>
+        <div class="input-group">
+          <label for="edit-task-description">Descripción</label>
+          <textarea id="edit-task-description" placeholder="Detalla los requerimientos o notas de la tarea" rows="3"></textarea>
+        </div>
+        <div class="modal-row">
+          <div class="input-group">
+            <label for="edit-task-duration">Duración estimada</label>
+            <input type="text" id="edit-task-duration" placeholder="Ej: 3h, 2 días">
+          </div>
+          <div class="input-group">
+            <label for="edit-task-importance">Prioridad</label>
+            <select id="edit-task-importance" required>
+              <option value="low">Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="edit-task-assigned">Asignado a</label>
+          <select id="edit-task-assigned">
+            <option value="">Sin asignar</option>
+            <!-- Users list injected dynamically -->
+          </select>
+        </div>
+        <div class="input-group" id="edit-task-admin-only-wrapper" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
+            <input type="checkbox" id="edit-task-is-admin-only" style="width: auto; margin-right: 4px;"> Solo visible para Administradores
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeEditTaskModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cambios</button>
         </div>
       </form>
     </div>

@@ -129,6 +129,32 @@ app.post('/api/polls', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+app.put('/api/polls/:id', authenticate, requireAdmin, async (req, res) => {
+  const pollId = parseInt(req.params.id);
+  const { question, type, isAdminOnly } = req.body;
+
+  if (!question || !type) {
+    return res.status(400).json({ error: 'La pregunta y el tipo son obligatorios.' });
+  }
+
+  try {
+    await db.updatePoll(pollId, question, type, !!isAdminOnly);
+    res.json({ message: 'Encuesta actualizada correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/polls/:id', authenticate, requireAdmin, async (req, res) => {
+  const pollId = parseInt(req.params.id);
+  try {
+    await db.deletePoll(pollId);
+    res.json({ message: 'Encuesta eliminada correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/polls/:id/vote', authenticate, async (req, res) => {
   const pollId = parseInt(req.params.id);
   const { optionIds } = req.body; // Array of selected option IDs

@@ -87,6 +87,7 @@ function showAppScreen() {
   const kanbanAdminWrapper = document.getElementById('kanban-admin-board-toggle-wrapper');
   const pollAdminWrapper = document.getElementById('poll-admin-only-wrapper');
   const taskAdminWrapper = document.getElementById('task-admin-only-wrapper');
+  const editPollAdminWrapper = document.getElementById('edit-poll-admin-only-wrapper');
 
   if (currentUser.role === 'admin') {
     btnCreatePoll.classList.remove('hidden');
@@ -94,12 +95,14 @@ function showAppScreen() {
     kanbanAdminWrapper.classList.remove('hidden');
     pollAdminWrapper.classList.remove('hidden');
     taskAdminWrapper.classList.remove('hidden');
+    editPollAdminWrapper.classList.remove('hidden');
   } else {
     btnCreatePoll.classList.add('hidden');
     pollsFilterBar.classList.add('hidden');
     kanbanAdminWrapper.classList.add('hidden');
     pollAdminWrapper.classList.add('hidden');
     taskAdminWrapper.classList.add('hidden');
+    editPollAdminWrapper.classList.add('hidden');
   }
 
   // Show task action (any user can create tasks)
@@ -323,6 +326,20 @@ function renderPolls(polls) {
       </button>
     `;
 
+    // Action buttons for admins
+    if (currentUser.role === 'admin') {
+      headerHTML += `
+        <div class="poll-admin-actions" style="display:flex; justify-content: flex-end; gap:8px; margin-top:12px; border-top:1px solid rgba(255,255,255,0.05); padding-top:12px;">
+          <button class="btn btn-outline btn-xs" onclick="openEditPollModal(${poll.id})">
+            <i data-lucide="edit-3" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i> Editar
+          </button>
+          <button class="btn btn-outline btn-xs" onclick="deletePoll(${poll.id})" style="border-color:var(--danger);color:var(--danger)">
+            <i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i> Eliminar
+          </button>
+        </div>
+      `;
+    }
+
     card.innerHTML = headerHTML;
     grid.appendChild(card);
   });
@@ -425,6 +442,60 @@ async function handleCreatePoll(event) {
 
     showToast('Encuesta creada exitosamente.');
     closeCreatePollModal();
+    loadPolls();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+// Edit Poll Handlers
+function openEditPollModal(pollId) {
+  const poll = allPolls.find(p => p.id === pollId);
+  if (!poll) return;
+
+  document.getElementById('edit-poll-modal').classList.remove('hidden');
+
+  document.getElementById('edit-poll-id').value = poll.id;
+  document.getElementById('edit-poll-question').value = poll.question;
+  document.getElementById('edit-poll-type').value = poll.type;
+  document.getElementById('edit-poll-is-admin-only').checked = !!poll.is_admin_only;
+}
+
+function closeEditPollModal() {
+  document.getElementById('edit-poll-modal').classList.add('hidden');
+  document.getElementById('edit-poll-form').reset();
+}
+
+async function handleEditPoll(event) {
+  event.preventDefault();
+
+  const pollId = document.getElementById('edit-poll-id').value;
+  const question = document.getElementById('edit-poll-question').value;
+  const type = document.getElementById('edit-poll-type').value;
+  const isAdminOnly = document.getElementById('edit-poll-is-admin-only').checked;
+
+  try {
+    await apiFetch(`/polls/${pollId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ question, type, isAdminOnly })
+    });
+
+    showToast('Encuesta actualizada correctamente.');
+    closeEditPollModal();
+    loadPolls();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function deletePoll(pollId) {
+  if (!confirm('¿Estás seguro de que quieres eliminar esta encuesta? Se borrarán también todos sus votos asociados.')) return;
+
+  try {
+    await apiFetch(`/polls/${pollId}`, {
+      method: 'DELETE'
+    });
+    showToast('Encuesta eliminada correctamente.');
     loadPolls();
   } catch (error) {
     showToast(error.message, 'error');

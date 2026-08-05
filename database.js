@@ -93,6 +93,7 @@ module.exports = {
     }
 
     const { data: polls, error: pollsError } = await query;
+    if (pollsError) throw pollsError;
     const pollsWithDetails = [];
 
     for (const poll of polls) {
@@ -129,11 +130,34 @@ module.exports = {
         options: optionsWithVotes,
         totalVotes,
         userVoted: userVotes.length > 0,
-        userVotes
+        userVotes,
+        is_admin_only: poll.is_admin_only
       });
     }
 
     return pollsWithDetails;
+  },
+
+  async deletePoll(pollId) {
+    const { error } = await supabase
+      .from('polls')
+      .delete()
+      .eq('id', pollId);
+
+    if (error) throw error;
+  },
+
+  async updatePoll(pollId, question, type, isAdminOnly) {
+    const { error } = await supabase
+      .from('polls')
+      .update({
+        question,
+        type,
+        is_admin_only: isAdminOnly
+      })
+      .eq('id', pollId);
+
+    if (error) throw error;
   },
 
   async submitVotes(pollId, userId, optionIds) {

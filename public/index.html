@@ -248,6 +248,39 @@
     </div>
   </div>
 
+  <!-- Edit Poll Modal -->
+  <div id="edit-poll-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Editar Encuesta</h3>
+        <button class="btn-close-modal" onclick="closeEditPollModal()"><i data-lucide="x"></i></button>
+      </div>
+      <form id="edit-poll-form" onsubmit="handleEditPoll(event)">
+        <input type="hidden" id="edit-poll-id">
+        <div class="input-group">
+          <label for="edit-poll-question">Pregunta o Tema</label>
+          <input type="text" id="edit-poll-question" placeholder="¿Qué quieres consultar al equipo?" required>
+        </div>
+        <div class="input-group">
+          <label for="edit-poll-type">Tipo de Votación</label>
+          <select id="edit-poll-type" required>
+            <option value="single">Voto único (Solo se puede elegir una opción)</option>
+            <option value="multiple">Voto múltiple (Se pueden elegir varias opciones)</option>
+          </select>
+        </div>
+        <div class="input-group" id="edit-poll-admin-only-wrapper" style="margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
+            <input type="checkbox" id="edit-poll-is-admin-only" style="width: auto; margin-right: 4px;"> Solo visible para Administradores
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeEditPollModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Create Task Modal -->
   <div id="create-task-modal" class="modal-overlay hidden">
     <div class="modal-card">

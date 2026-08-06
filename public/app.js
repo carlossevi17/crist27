@@ -605,6 +605,16 @@ function renderKanbanTasks(tasks) {
       high: 'Alta'
     }[task.importance];
 
+    let isOverdue = false;
+    if (task.due_date && task.status !== 'completed') {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+      isOverdue = task.due_date <= todayStr;
+    }
+
     card.innerHTML = `
       <div class="task-card-header">
         <span class="task-title">${escapeHTML(task.title)}</span>
@@ -613,7 +623,13 @@ function renderKanbanTasks(tasks) {
       ${task.description ? `<p class="task-desc">${escapeHTML(task.description)}</p>` : ''}
       <div class="task-meta">
         <div class="task-meta-left">
-          ${task.due_date ? `<span><i data-lucide="calendar" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> ${formatDate(task.due_date)}</span>` : ''}
+          ${task.due_date ? `
+            <span class="${isOverdue ? 'task-overdue' : ''}">
+              <i data-lucide="calendar" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i>
+              ${formatDate(task.due_date)}
+              ${isOverdue ? ' ⚠️' : ''}
+            </span>
+          ` : ''}
         </div>
         <div class="task-assigned-badge">
           <i data-lucide="user" style="width:11px;height:11px;"></i>

@@ -623,6 +623,10 @@ select option {
   gap: 8px;
   color: var(--text-muted);
 }
+.task-overdue {
+  color: var(--danger) !important;
+  font-weight: 600;
+}
 .task-badge-importance {
   font-size: 10px;
   font-weight: 600;

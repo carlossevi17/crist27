@@ -182,7 +182,7 @@ app.get('/api/tasks', authenticate, async (req, res) => {
 });
 
 app.post('/api/tasks', authenticate, async (req, res) => {
-  const { title, description, duration, importance, assignedTo, isAdminOnly } = req.body;
+  const { title, description, dueDate, importance, assignedTo, isAdminOnly } = req.body;
   if (!title || !importance) {
     return res.status(400).json({ error: 'El título y la importancia son obligatorios.' });
   }
@@ -191,7 +191,7 @@ app.post('/api/tasks', authenticate, async (req, res) => {
   const enforceAdminOnly = req.user.role === 'admin' ? !!isAdminOnly : false;
 
   try {
-    const result = await db.createTask(title, description, duration, importance, assignedTo, req.user.id, enforceAdminOnly);
+    const result = await db.createTask(title, description, dueDate, importance, assignedTo, req.user.id, enforceAdminOnly);
     res.status(201).json({ message: 'Tarea creada correctamente', taskId: result.id });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -200,7 +200,7 @@ app.post('/api/tasks', authenticate, async (req, res) => {
 
 app.put('/api/tasks/:id', authenticate, async (req, res) => {
   const taskId = parseInt(req.params.id);
-  const { title, description, duration, importance, assignedTo, isAdminOnly } = req.body;
+  const { title, description, dueDate, importance, assignedTo, isAdminOnly } = req.body;
 
   if (!title || !importance) {
     return res.status(400).json({ error: 'El título y la importancia son obligatorios.' });
@@ -210,7 +210,7 @@ app.put('/api/tasks/:id', authenticate, async (req, res) => {
   const enforceAdminOnly = req.user.role === 'admin' ? !!isAdminOnly : false;
 
   try {
-    await db.updateTask(taskId, title, description, duration, importance, assignedTo, enforceAdminOnly);
+    await db.updateTask(taskId, title, description, dueDate, importance, assignedTo, enforceAdminOnly);
     res.json({ message: 'Tarea actualizada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });

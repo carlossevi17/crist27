@@ -613,7 +613,7 @@ function renderKanbanTasks(tasks) {
       ${task.description ? `<p class="task-desc">${escapeHTML(task.description)}</p>` : ''}
       <div class="task-meta">
         <div class="task-meta-left">
-          ${task.duration ? `<span><i data-lucide="clock" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> ${escapeHTML(task.duration)}</span>` : ''}
+          ${task.due_date ? `<span><i data-lucide="calendar" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> ${formatDate(task.due_date)}</span>` : ''}
         </div>
         <div class="task-assigned-badge">
           <i data-lucide="user" style="width:11px;height:11px;"></i>
@@ -738,7 +738,7 @@ async function handleCreateTask(event) {
   
   const title = document.getElementById('task-title').value;
   const description = document.getElementById('task-description').value;
-  const duration = document.getElementById('task-duration').value;
+  const dueDate = document.getElementById('task-duration').value;
   const importance = document.getElementById('task-importance').value;
   const assignedTo = document.getElementById('task-assigned').value;
   const isAdminOnly = document.getElementById('task-is-admin-only').checked;
@@ -749,7 +749,7 @@ async function handleCreateTask(event) {
       body: JSON.stringify({
         title,
         description,
-        duration,
+        dueDate,
         importance,
         assignedTo: assignedTo ? parseInt(assignedTo) : null,
         isAdminOnly
@@ -775,7 +775,7 @@ async function openEditTaskModal(taskId) {
   document.getElementById('edit-task-id').value = task.id;
   document.getElementById('edit-task-title').value = task.title;
   document.getElementById('edit-task-description').value = task.description || '';
-  document.getElementById('edit-task-duration').value = task.duration || '';
+  document.getElementById('edit-task-duration').value = task.due_date || '';
   document.getElementById('edit-task-importance').value = task.importance;
 
   // Toggle admin wrapper display
@@ -819,7 +819,7 @@ async function handleEditTask(event) {
   const taskId = document.getElementById('edit-task-id').value;
   const title = document.getElementById('edit-task-title').value;
   const description = document.getElementById('edit-task-description').value;
-  const duration = document.getElementById('edit-task-duration').value;
+  const dueDate = document.getElementById('edit-task-duration').value;
   const importance = document.getElementById('edit-task-importance').value;
   const assignedTo = document.getElementById('edit-task-assigned').value;
   const isAdminOnly = document.getElementById('edit-task-is-admin-only').checked;
@@ -830,7 +830,7 @@ async function handleEditTask(event) {
       body: JSON.stringify({
         title,
         description,
-        duration,
+        dueDate,
         importance,
         assignedTo: assignedTo ? parseInt(assignedTo) : null,
         isAdminOnly
@@ -857,4 +857,14 @@ function escapeHTML(str) {
       '"': '&quot;'
     }[tag] || tag)
   );
+}
+
+// Helper: Format YYYY-MM-DD date to DD/MM/YYYY
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
 }

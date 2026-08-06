@@ -184,13 +184,13 @@ module.exports = {
     if (insertError) throw insertError;
   },
 
-  async createTask(title, description, duration, importance, assignedTo, createdBy, isAdminOnly = false) {
+  async createTask(title, description, dueDate, importance, assignedTo, createdBy, isAdminOnly = false) {
     const { data, error } = await supabase
       .from('tasks')
       .insert([{
         title,
         description,
-        duration,
+        due_date: dueDate || null,
         importance,
         status: 'pending',
         assigned_to: assignedTo || null,
@@ -231,13 +231,13 @@ module.exports = {
     }));
   },
 
-  async updateTask(taskId, title, description, duration, importance, assignedTo, isAdminOnly) {
+  async updateTask(taskId, title, description, dueDate, importance, assignedTo, isAdminOnly) {
     const { error } = await supabase
       .from('tasks')
       .update({
         title,
         description,
-        duration,
+        due_date: dueDate || null,
         importance,
         assigned_to: assignedTo || null,
         is_admin_only: isAdminOnly

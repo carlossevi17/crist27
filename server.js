@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const bcrypt = require('bcryptjs');
 const db = require('./database');
 
 const app = express();
@@ -20,7 +19,7 @@ async function authenticate(req, res, next) {
   }
 
   try {
-    const user = await db.getUserById(parseInt(userId));
+    const user = await db.getUserById(userId);
     if (!user) {
       return res.status(401).json({ error: 'Usuario no encontrado o no válido.' });
     }
@@ -41,12 +40,10 @@ function requireAdmin(req, res, next) {
 
 // Auth Endpoints
 app.post('/api/auth/register', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios (usuario y contraseña).' });
+  const { username, email, password } = req.body;
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (usuario, email y contraseña).' });
   }
-
-  const role = 'user'; // Por defecto es usuario estándar. Rol admin se asigna manualmente en la base de datos.
 
   try {
     // Check if user limit is reached
@@ -60,29 +57,50 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'El nombre de usuario ya existe.' });
     }
 
-    const result = await db.createUser(username, password, role);
-    const newUser = await db.getUserById(result.id);
-    res.status(201).json(newUser);
+    // First user is admin, otherwise user
+    const role = users.length === 0 ? 'admin' : 'user';
+
+    const { data, error } = await db.supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          role
+        }
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    const newUser = await db.getUserById(data.user.id);
+    res.status(201).json(newUser || { id: data.user.id, username, role });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Usuario y contraseña requeridos.' });
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña requeridos.' });
   }
 
   try {
-    const user = await db.getUserByUsername(username);
-    if (!user) {
-      return res.status(400).json({ error: 'Credenciales incorrectas.' });
+    const { data, error } = await db.supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      return res.status(400).json({ error: 'Credenciales incorrectas: ' + error.message });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Credenciales incorrectas.' });
+    const user = await db.getUserById(data.user.id);
+    if (!user) {
+      return res.status(400).json({ error: 'Perfil de usuario no encontrado en la base de datos.' });
     }
 
     res.json({
@@ -90,6 +108,63 @@ app.post('/api/auth/login', async (req, res) => {
       username: user.username,
       role: user.role
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'El correo electrónico es obligatorio.' });
+  }
+
+  try {
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    const host = req.get('host');
+    const redirectUrl = `${proto}://${host}/`;
+
+    const { error } = await db.supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ message: 'Correo de recuperación enviado correctamente.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { accessToken, newPassword } = req.body;
+  if (!accessToken || !newPassword) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios.' });
+  }
+
+  try {
+    const { error: sessionError } = await db.supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: ''
+    });
+
+    if (sessionError) {
+      return res.status(400).json({ error: 'Token inválido o expirado.' });
+    }
+
+    const { error: updateError } = await db.supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (updateError) {
+      return res.status(400).json({ error: 'No se pudo actualizar la contraseña: ' + updateError.message });
+    }
+
+    await db.supabase.auth.signOut();
+
+    res.json({ message: 'Contraseña restablecida correctamente. Ya puedes iniciar sesión.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

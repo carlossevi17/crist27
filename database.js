@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -18,18 +17,9 @@ async function initDb() {
 
 module.exports = {
   initDb,
+  supabase,
   // Auth Functions
-  async createUser(username, password, role) {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const { data, error } = await supabase
-      .from('users')
-      .insert([{ username, password: hashedPassword, role }])
-      .select()
-      .single();
 
-    if (error) throw error;
-    return data;
-  },
 
   async getUserByUsername(username) {
     const { data, error } = await supabase

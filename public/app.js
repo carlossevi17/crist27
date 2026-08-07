@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     showAuthScreen();
   }
+
+  // Check URL hash for recovery token
+  checkRecoveryToken();
+
   lucide.createIcons();
 });
 
@@ -116,6 +120,7 @@ function showAppScreen() {
 function switchAuthTab(tab) {
   const loginForm = document.getElementById('login-form');
   const registerForm = document.getElementById('register-form');
+  const forgotForm = document.getElementById('forgot-password-form');
   const loginBtn = document.getElementById('tab-login-btn');
   const registerBtn = document.getElementById('tab-register-btn');
   const authError = document.getElementById('auth-error');
@@ -127,19 +132,34 @@ function switchAuthTab(tab) {
   if (tab === 'login') {
     loginForm.classList.remove('hidden');
     registerForm.classList.add('hidden');
+    forgotForm.classList.add('hidden');
     loginBtn.classList.add('active');
     registerBtn.classList.remove('active');
-  } else {
+  } else if (tab === 'register') {
     loginForm.classList.add('hidden');
     registerForm.classList.remove('hidden');
+    forgotForm.classList.add('hidden');
     loginBtn.classList.remove('active');
     registerBtn.classList.add('active');
   }
 }
 
+function showForgotPasswordForm(event) {
+  if (event) event.preventDefault();
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('forgot-password-form').classList.remove('hidden');
+  document.getElementById('tab-login-btn').classList.remove('active');
+  document.getElementById('tab-register-btn').classList.remove('active');
+}
+
+function showLoginForm() {
+  switchAuthTab('login');
+}
+
 async function handleLogin(event) {
   event.preventDefault();
-  const usernameInput = document.getElementById('login-username');
+  const emailInput = document.getElementById('login-email');
   const passwordInput = document.getElementById('login-password');
   const errorDiv = document.getElementById('auth-error');
 
@@ -149,7 +169,7 @@ async function handleLogin(event) {
     const data = await apiFetch('/auth/login', {
       method: 'POST',
       body: JSON.stringify({
-        username: usernameInput.value,
+        email: emailInput.value,
         password: passwordInput.value
       })
     });
@@ -158,7 +178,7 @@ async function handleLogin(event) {
     sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
     showAppScreen();
     showToast(`¡Bienvenido de nuevo, ${currentUser.username}!`);
-    usernameInput.value = '';
+    emailInput.value = '';
     passwordInput.value = '';
   } catch (error) {
     errorDiv.textContent = error.message;
@@ -169,6 +189,7 @@ async function handleLogin(event) {
 async function handleRegister(event) {
   event.preventDefault();
   const usernameInput = document.getElementById('register-username');
+  const emailInput = document.getElementById('register-email');
   const passwordInput = document.getElementById('register-password');
   const errorDiv = document.getElementById('auth-error');
   const successDiv = document.getElementById('auth-success');
@@ -181,21 +202,87 @@ async function handleRegister(event) {
       method: 'POST',
       body: JSON.stringify({
         username: usernameInput.value,
-        password: passwordInput.value,
-        role: 'user' // Default to standard user role
+        email: emailInput.value,
+        password: passwordInput.value
       })
     });
 
-    successDiv.textContent = 'Registro exitoso. Ya puedes iniciar sesión.';
+    successDiv.textContent = 'Registro exitoso. Revisa tu correo electrónico para confirmar tu cuenta y luego inicia sesión.';
     successDiv.classList.remove('hidden');
     switchAuthTab('login');
     usernameInput.value = '';
+    emailInput.value = '';
     passwordInput.value = '';
   } catch (error) {
     errorDiv.textContent = error.message;
     errorDiv.classList.remove('hidden');
   }
 }
+
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('forgot-email');
+  const errorDiv = document.getElementById('auth-error');
+  const successDiv = document.getElementById('auth-success');
+
+  errorDiv.classList.add('hidden');
+  successDiv.classList.add('hidden');
+
+  try {
+    const data = await apiFetch('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: emailInput.value
+      })
+    });
+
+    successDiv.textContent = data.message;
+    successDiv.classList.remove('hidden');
+    emailInput.value = '';
+  } catch (error) {
+    errorDiv.textContent = error.message;
+    errorDiv.classList.remove('hidden');
+  }
+}
+
+async function handleResetPassword(event) {
+  event.preventDefault();
+  const tokenInput = document.getElementById('reset-token');
+  const newPasswordInput = document.getElementById('reset-new-password');
+
+  try {
+    const data = await apiFetch('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        accessToken: tokenInput.value,
+        newPassword: newPasswordInput.value
+      })
+    });
+
+    showToast(data.message);
+    document.getElementById('reset-password-modal').classList.add('hidden');
+    document.getElementById('reset-password-form').reset();
+    showLoginForm();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function checkRecoveryToken() {
+  const hash = window.location.hash;
+  if (hash) {
+    const params = new URLSearchParams(hash.substring(1));
+    const accessToken = params.get('access_token');
+    const type = params.get('type');
+    
+    if (accessToken && type === 'recovery') {
+      window.location.hash = '';
+      document.getElementById('reset-token').value = accessToken;
+      document.getElementById('reset-password-modal').classList.remove('hidden');
+    }
+  }
+}
+
 function handleLogout() {
   currentUser = null;
   sessionStorage.removeItem('currentUser');

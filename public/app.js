@@ -671,8 +671,7 @@ function filterKanbanTasks() {
   } else if (assignedFilter === 'unassigned') {
     filtered = filtered.filter(task => !task.assigned_to);
   } else if (assignedFilter !== 'all') {
-    const userId = parseInt(assignedFilter);
-    filtered = filtered.filter(task => task.assigned_to === userId);
+    filtered = filtered.filter(task => task.assigned_to === assignedFilter);
   }
 
   renderKanbanTasks(filtered);
@@ -869,7 +868,7 @@ async function handleCreateTask(event) {
         description,
         dueDate,
         importance,
-        assignedTo: assignedTo ? parseInt(assignedTo) : null,
+        assignedTo: assignedTo || null,
         isAdminOnly
       })
     });
@@ -950,7 +949,7 @@ async function handleEditTask(event) {
         description,
         dueDate,
         importance,
-        assignedTo: assignedTo ? parseInt(assignedTo) : null,
+        assignedTo: assignedTo || null,
         isAdminOnly
       })
     });

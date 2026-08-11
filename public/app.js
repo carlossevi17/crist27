@@ -93,7 +93,7 @@ function showAppScreen() {
   const taskAdminWrapper = document.getElementById('task-admin-only-wrapper');
   const editPollAdminWrapper = document.getElementById('edit-poll-admin-only-wrapper');
 
-  if (currentUser.role === 'admin') {
+  if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
     btnCreatePoll.classList.remove('hidden');
     pollsFilterBar.classList.remove('hidden');
     kanbanAdminWrapper.classList.remove('hidden');
@@ -107,6 +107,14 @@ function showAppScreen() {
     pollAdminWrapper.classList.add('hidden');
     taskAdminWrapper.classList.add('hidden');
     editPollAdminWrapper.classList.add('hidden');
+  }
+
+  // Show/Hide Superuser actions
+  const navUsers = document.getElementById('nav-users');
+  if (currentUser.role === 'superuser') {
+    navUsers.classList.remove('hidden');
+  } else {
+    navUsers.classList.add('hidden');
   }
 
   // Show task action (any user can create tasks)
@@ -294,8 +302,10 @@ function switchAppTab(tab) {
   currentTab = tab;
   document.getElementById('nav-polls').classList.remove('active');
   document.getElementById('nav-kanban').classList.remove('active');
+  document.getElementById('nav-users').classList.remove('active');
   document.getElementById('polls-view').classList.add('hidden');
   document.getElementById('kanban-view').classList.add('hidden');
+  document.getElementById('users-view').classList.add('hidden');
   document.getElementById('btn-create-poll').classList.add('hidden');
   document.getElementById('btn-create-task').classList.add('hidden');
 
@@ -304,18 +314,23 @@ function switchAppTab(tab) {
     document.getElementById('polls-view').classList.remove('hidden');
     document.getElementById('tab-title').textContent = 'Encuestas';
     document.getElementById('tab-subtitle').textContent = 'Consulta o participa en los votos del equipo';
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
       document.getElementById('btn-create-poll').classList.remove('hidden');
     }
     loadPolls();
   } else if (tab === 'kanban') {
-    document.getElementById('nav-kanban').classList.add('active');
     document.getElementById('nav-kanban').classList.add('active');
     document.getElementById('kanban-view').classList.remove('hidden');
     document.getElementById('tab-title').textContent = 'Tareas';
     document.getElementById('tab-subtitle').textContent = 'Gestiona, asigna y arrastra las tareas de tu equipo';
     document.getElementById('btn-create-task').classList.remove('hidden');
     loadKanban();
+  } else if (tab === 'users') {
+    document.getElementById('nav-users').classList.add('active');
+    document.getElementById('users-view').classList.remove('hidden');
+    document.getElementById('tab-title').textContent = 'Usuarios & Roles';
+    document.getElementById('tab-subtitle').textContent = 'Administra los privilegios de los usuarios del sistema';
+    loadUsersManagement();
   }
 }
 
@@ -338,7 +353,7 @@ function filterPolls() {
   const scope = document.getElementById('polls-scope').value;
   let filtered = [];
 
-  if (currentUser.role === 'admin') {
+  if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
     if (scope === 'admin') {
       filtered = allPolls.filter(poll => poll.is_admin_only === true);
     } else {
@@ -414,7 +429,7 @@ function renderPolls(polls) {
     `;
 
     // Action buttons for admins
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
       headerHTML += `
         <div class="poll-admin-actions" style="display:flex; justify-content: flex-end; gap:8px; margin-top:12px; border-top:1px solid rgba(255,255,255,0.05); padding-top:12px;">
           <button class="btn btn-outline btn-xs" onclick="openEditPollModal(${poll.id})">
@@ -606,7 +621,7 @@ async function populateKanbanFilterDropdown() {
   `;
   
   // Only add individual other users if current user is an admin
-  if (currentUser.role === 'admin') {
+  if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
     try {
       const users = await apiFetch('/users');
       users.forEach(user => {
@@ -639,7 +654,7 @@ function filterKanbanTasks() {
   let filtered = allTasks;
 
   // 1. Filter by scope
-  if (currentUser.role === 'admin') {
+  if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
     if (scopeFilter === 'admin') {
       filtered = filtered.filter(task => task.is_admin_only === true);
     } else {
@@ -885,7 +900,7 @@ async function openEditTaskModal(taskId) {
   const adminWrapper = document.getElementById('edit-task-admin-only-wrapper');
   const checkbox = document.getElementById('edit-task-is-admin-only');
   checkbox.checked = !!task.is_admin_only;
-  if (currentUser.role === 'admin') {
+  if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
     adminWrapper.classList.remove('hidden');
   } else {
     adminWrapper.classList.add('hidden');
@@ -970,4 +985,71 @@ function formatDate(dateStr) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   }
   return dateStr;
+}
+
+// USERS MANAGEMENT (Superuser Only)
+async function loadUsersManagement() {
+  const tbody = document.getElementById('users-table-body');
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">Cargando usuarios...</td></tr>';
+  
+  try {
+    const users = await apiFetch('/users');
+    tbody.innerHTML = '';
+    
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No se encontraron usuarios.</td></tr>';
+      return;
+    }
+    
+    users.forEach(user => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border-light)';
+      
+      const badgeClass = user.role === 'superuser' ? 'badge-superuser' : (user.role === 'admin' ? 'badge-admin' : 'badge-user');
+      const isSelf = user.id === currentUser.id;
+      
+      const selectHtml = `
+        <select class="role-select" onchange="updateUserRole('${user.id}', this.value)" ${isSelf ? 'disabled' : ''}>
+          <option value="user" ${user.role === 'user' ? 'selected' : ''}>Usuario (User)</option>
+          <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrador (Admin)</option>
+          <option value="superuser" ${user.role === 'superuser' ? 'selected' : ''}>Superusuario (Superuser)</option>
+        </select>
+      `;
+      
+      tr.innerHTML = `
+        <td style="padding: 16px; display: flex; align-items: center; gap: 12px;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary-glow); display: flex; align-items: center; justify-content: center; font-weight: 600; color: white;">
+            ${user.username.substring(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <span style="font-weight: 500; color: var(--text-primary);">${escapeHTML(user.username)}</span>
+            ${isSelf ? '<span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">(Tú)</span>' : ''}
+          </div>
+        </td>
+        <td style="padding: 16px;">
+          <span class="badge ${badgeClass}">${user.role}</span>
+        </td>
+        <td style="padding: 16px; text-align: right;">
+          ${selectHtml}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function updateUserRole(userId, newRole) {
+  try {
+    await apiFetch(`/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role: newRole })
+    });
+    showToast('Rol de usuario actualizado con éxito');
+    loadUsersManagement();
+  } catch (error) {
+    showToast(error.message, 'error');
+    loadUsersManagement();
+  }
 }

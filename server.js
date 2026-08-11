@@ -30,10 +30,18 @@ async function authenticate(req, res, next) {
   }
 }
 
-// Middleware to restrict access to admin only
+// Middleware to restrict access to admin only (or superuser)
 function requireAdmin(req, res, next) {
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'admin' && req.user.role !== 'superuser') {
     return res.status(403).json({ error: 'Acceso denegado. Se requiere rol de administrador.' });
+  }
+  next();
+}
+
+// Middleware to restrict access to superuser only
+function requireSuperuser(req, res, next) {
+  if (req.user.role !== 'superuser') {
+    return res.status(403).json({ error: 'Acceso denegado. Se requiere rol de superusuario.' });
   }
   next();
 }
@@ -175,6 +183,31 @@ app.get('/api/users', authenticate, async (req, res) => {
   try {
     const users = await db.getAllUsers();
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update User Role (Superuser Only)
+app.put('/api/users/:id/role', authenticate, requireSuperuser, async (req, res) => {
+  const targetUserId = req.params.id;
+  const { role } = req.body;
+  
+  if (!['user', 'admin', 'superuser'].includes(role)) {
+    return res.status(400).json({ error: 'Rol no válido. Debe ser user, admin o superuser.' });
+  }
+
+  try {
+    const { error } = await db.supabase
+      .from('users')
+      .update({ role })
+      .eq('id', targetUserId);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ message: 'Rol de usuario actualizado correctamente.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -127,6 +127,10 @@
           <i data-lucide="kanban"></i>
           <span>Tareas</span>
         </button>
+        <button class="nav-item hidden" id="nav-users" onclick="switchAppTab('users')">
+          <i data-lucide="users"></i>
+          <span>Usuarios</span>
+        </button>
       </nav>
       <div class="sidebar-footer">
         <div class="user-badge">
@@ -226,6 +230,30 @@
             <div class="column-body" id="tasks-completed">
               <!-- Tasks will be injected here -->
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- USERS VIEW -->
+      <section id="users-view" class="view-section hidden">
+        <div class="glass-card table-container" style="padding: 24px;">
+          <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 20px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600; color: var(--text-primary);">Gestión de Usuarios & Roles</h3>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Administra los privilegios y roles de los usuarios del sistema</p>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="users-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                  <th style="padding: 12px 16px; font-weight: 600; color: var(--text-primary);">Usuario</th>
+                  <th style="padding: 12px 16px; font-weight: 600; color: var(--text-primary);">Rol Actual</th>
+                  <th style="padding: 12px 16px; font-weight: 600; color: var(--text-primary); text-align: right;">Acciones / Cambiar Rol</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <!-- Users dynamic rows will be loaded here -->
+              </tbody>
+            </table>
           </div>
         </div>
       </section>

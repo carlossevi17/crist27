@@ -78,7 +78,7 @@ module.exports = {
   async getPollsWithResults(userId, userRole) {
     let query = supabase.from('polls').select('*').order('created_at', { ascending: false });
 
-    if (userRole !== 'admin') {
+    if (userRole !== 'admin' && userRole !== 'superuser') {
       query = query.or('is_admin_only.eq.false,is_admin_only.is.null');
     }
 
@@ -197,7 +197,7 @@ module.exports = {
   async getTasks(userRole) {
     let query = supabase.from('tasks').select('*').order('created_at', { ascending: false });
 
-    if (userRole !== 'admin') {
+    if (userRole !== 'admin' && userRole !== 'superuser') {
       query = query.or('is_admin_only.eq.false,is_admin_only.is.null');
     }
 

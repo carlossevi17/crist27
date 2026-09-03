@@ -172,6 +172,7 @@
           <select id="polls-scope" onchange="filterPolls()">
             <option value="general" selected>Públicas</option>
             <option value="admin">Privadas (Solo Admins)</option>
+            <option value="archived">Archivadas</option>
           </select>
         </div>
         <div id="polls-grid" class="polls-grid">
@@ -291,6 +292,10 @@
             <i data-lucide="plus"></i> Agregar opción
           </button>
         </div>
+        <div class="input-group">
+          <label for="poll-closes-at">Fecha límite de votación <span style="color:var(--text-secondary);font-weight:400;">(opcional)</span></label>
+          <input type="datetime-local" id="poll-closes-at">
+        </div>
         <div class="input-group" id="poll-admin-only-wrapper" style="margin-top: 8px;">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">
             <input type="checkbox" id="poll-is-admin-only" style="width: auto; margin-right: 4px;"> Solo visible para Administradores
@@ -323,6 +328,10 @@
             <option value="single">Voto único (Solo se puede elegir una opción)</option>
             <option value="multiple">Voto múltiple (Se pueden elegir varias opciones)</option>
           </select>
+        </div>
+        <div class="input-group">
+          <label for="edit-poll-closes-at">Fecha límite de votación <span style="color:var(--text-secondary);font-weight:400;">(opcional)</span></label>
+          <input type="datetime-local" id="edit-poll-closes-at">
         </div>
         <div class="input-group" id="edit-poll-admin-only-wrapper" style="margin-top: 8px;">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 500;">

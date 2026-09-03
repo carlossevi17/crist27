@@ -350,18 +350,19 @@ async function loadPolls() {
 }
 
 function filterPolls() {
-  const scope = document.getElementById('polls-scope').value;
+  const scope = document.getElementById('polls-scope')?.value || 'general';
   let filtered = [];
 
   if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
     if (scope === 'admin') {
-      filtered = allPolls.filter(poll => poll.is_admin_only === true);
+      filtered = allPolls.filter(poll => poll.is_admin_only === true && !poll.archived);
+    } else if (scope === 'archived') {
+      filtered = allPolls.filter(poll => poll.archived === true);
     } else {
-      // General/Public
-      filtered = allPolls.filter(poll => !poll.is_admin_only);
+      filtered = allPolls.filter(poll => !poll.is_admin_only && !poll.archived);
     }
   } else {
-    filtered = allPolls; // Standard users only receive public ones
+    filtered = allPolls.filter(poll => !poll.archived);
   }
 
   renderPolls(filtered);
@@ -380,31 +381,59 @@ function renderPolls(polls) {
     const card = document.createElement('div');
     card.className = 'poll-card';
 
+    const now = new Date();
+    const isClosed = poll.closes_at ? new Date(poll.closes_at) < now : false;
+    const isArchived = !!poll.archived;
+    const canVote = !isClosed && !isArchived;
+
     // Header info
     const typeBadge = poll.type === 'multiple' ? 'Voto Múltiple' : 'Voto Único';
-    const adminBadge = poll.is_admin_only ? ' <span class="poll-badge" style="background:var(--danger-glow);color:var(--danger)">Admin</span>' : '';
+    const adminBadge = poll.is_admin_only ? '<span class="poll-badge" style="background:var(--danger-glow);color:var(--danger)">Admin</span>' : '';
+    const closedBadge = isClosed && !isArchived ? '<span class="poll-badge poll-badge-closed">Cerrada</span>' : '';
+    const archivedBadge = isArchived ? '<span class="poll-badge poll-badge-archived">Archivada</span>' : '';
+
     let headerHTML = `
       <div class="poll-card-header">
         <h4 class="poll-question">${escapeHTML(poll.question)}</h4>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           ${adminBadge}
+          ${closedBadge}
+          ${archivedBadge}
           <span class="poll-badge">${typeBadge}</span>
         </div>
       </div>
-      <div class="poll-options" id="options-poll-${poll.id}">
     `;
+
+    if (poll.closes_at) {
+      const closesDate = new Date(poll.closes_at);
+      const formattedDate = closesDate.toLocaleDateString('es-ES', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      headerHTML += `
+        <div class="poll-deadline ${isClosed ? 'poll-deadline-closed' : ''}">
+          <i data-lucide="clock" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i>
+          ${isClosed ? 'Votación cerrada el' : 'Cierre:'} ${formattedDate}
+        </div>
+      `;
+    }
+
+    headerHTML += `<div class="poll-options" id="options-poll-${poll.id}">`;
 
     // Options rendering
     poll.options.forEach(opt => {
       const isVoted = poll.userVotes.includes(opt.id);
       const inputType = poll.type === 'multiple' ? 'checkbox' : 'radio';
-      
+      const clickAttr = canVote ? `onclick="toggleOptionSelect(this, ${poll.id}, ${opt.id}, '${poll.type}')"` : '';
+      const disabledAttr = canVote ? '' : 'disabled';
+      const rowStyle = canVote ? '' : 'style="cursor:default;opacity:0.75;"';
+
       headerHTML += `
-        <div class="poll-option-row ${isVoted ? 'voted' : ''}" onclick="toggleOptionSelect(this, ${poll.id}, ${opt.id}, '${poll.type}')">
+        <div class="poll-option-row ${isVoted ? 'voted' : ''}" ${clickAttr} ${rowStyle}>
           <div class="poll-option-bar" style="width: ${opt.percentage}%"></div>
           <div class="poll-option-content">
             <span class="poll-option-text">
-              <input type="${inputType}" name="poll-opt-${poll.id}" value="${opt.id}" ${isVoted ? 'checked' : ''} onclick="event.stopPropagation()">
+              <input type="${inputType}" name="poll-opt-${poll.id}" value="${opt.id}" ${isVoted ? 'checked' : ''} ${disabledAttr} onclick="event.stopPropagation()">
               ${escapeHTML(opt.option_text)}
             </span>
             <span class="poll-option-percent">${opt.percentage}% (${opt.votesCount})</span>
@@ -417,24 +446,39 @@ function renderPolls(polls) {
       </div>
       <div class="poll-footer">
         <span>Votos totales: ${poll.totalVotes}</span>
-        <span>${poll.userVoted ? '¡Ya has votado!' : 'No has votado aún'}</span>
+        <span>${poll.userVoted ? '¡Ya has votado!' : (canVote ? 'No has votado aún' : '—')}</span>
       </div>
     `;
 
-    // Submission button
-    headerHTML += `
-      <button class="btn btn-primary btn-block poll-vote-btn" onclick="submitPollVote(${poll.id}, '${poll.type}')">
-        Enviar Voto <i data-lucide="send"></i>
-      </button>
-    `;
+    if (canVote) {
+      headerHTML += `
+        <button class="btn btn-primary btn-block poll-vote-btn" onclick="submitPollVote(${poll.id}, '${poll.type}')">
+          Enviar Voto <i data-lucide="send"></i>
+        </button>
+      `;
+    } else {
+      headerHTML += `
+        <div class="poll-closed-notice">
+          <i data-lucide="${isArchived ? 'archive' : 'lock'}" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>
+          ${isArchived ? 'Encuesta archivada' : 'La votación ha finalizado'}
+        </div>
+      `;
+    }
 
     // Action buttons for admins
     if (currentUser.role === 'admin' || currentUser.role === 'superuser') {
+      const editBtn = !isArchived ? `
+        <button class="btn btn-outline btn-xs" onclick="openEditPollModal(${poll.id})">
+          <i data-lucide="edit-3" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i> Editar
+        </button>` : '';
+      const archiveBtn = !isArchived ? `
+        <button class="btn btn-outline btn-xs" onclick="archivePoll(${poll.id})" style="border-color:var(--warning);color:var(--warning)">
+          <i data-lucide="archive" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i> Archivar
+        </button>` : '';
       headerHTML += `
         <div class="poll-admin-actions" style="display:flex; justify-content: flex-end; gap:8px; margin-top:12px; border-top:1px solid rgba(255,255,255,0.05); padding-top:12px;">
-          <button class="btn btn-outline btn-xs" onclick="openEditPollModal(${poll.id})">
-            <i data-lucide="edit-3" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i> Editar
-          </button>
+          ${editBtn}
+          ${archiveBtn}
           <button class="btn btn-outline btn-xs" onclick="deletePoll(${poll.id})" style="border-color:var(--danger);color:var(--danger)">
             <i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;"></i> Eliminar
           </button>
@@ -526,7 +570,9 @@ async function handleCreatePoll(event) {
   const type = document.getElementById('poll-type').value;
   const optionInputs = document.querySelectorAll('.poll-option-input');
   const isAdminOnly = document.getElementById('poll-is-admin-only').checked;
-  
+  const closesAtRaw = document.getElementById('poll-closes-at').value;
+  const closesAt = closesAtRaw ? new Date(closesAtRaw).toISOString() : null;
+
   const options = Array.from(optionInputs)
     .map(input => input.value.trim())
     .filter(val => val !== '');
@@ -539,7 +585,7 @@ async function handleCreatePoll(event) {
   try {
     await apiFetch('/polls', {
       method: 'POST',
-      body: JSON.stringify({ question, type, options, isAdminOnly })
+      body: JSON.stringify({ question, type, options, isAdminOnly, closesAt })
     });
 
     showToast('Encuesta creada exitosamente.');
@@ -561,6 +607,15 @@ function openEditPollModal(pollId) {
   document.getElementById('edit-poll-question').value = poll.question;
   document.getElementById('edit-poll-type').value = poll.type;
   document.getElementById('edit-poll-is-admin-only').checked = !!poll.is_admin_only;
+
+  if (poll.closes_at) {
+    const localDT = new Date(poll.closes_at);
+    const pad = n => String(n).padStart(2, '0');
+    const localStr = `${localDT.getFullYear()}-${pad(localDT.getMonth()+1)}-${pad(localDT.getDate())}T${pad(localDT.getHours())}:${pad(localDT.getMinutes())}`;
+    document.getElementById('edit-poll-closes-at').value = localStr;
+  } else {
+    document.getElementById('edit-poll-closes-at').value = '';
+  }
 }
 
 function closeEditPollModal() {
@@ -575,15 +630,29 @@ async function handleEditPoll(event) {
   const question = document.getElementById('edit-poll-question').value;
   const type = document.getElementById('edit-poll-type').value;
   const isAdminOnly = document.getElementById('edit-poll-is-admin-only').checked;
+  const closesAtRaw = document.getElementById('edit-poll-closes-at').value;
+  const closesAt = closesAtRaw ? new Date(closesAtRaw).toISOString() : null;
 
   try {
     await apiFetch(`/polls/${pollId}`, {
       method: 'PUT',
-      body: JSON.stringify({ question, type, isAdminOnly })
+      body: JSON.stringify({ question, type, isAdminOnly, closesAt })
     });
 
     showToast('Encuesta actualizada correctamente.');
     closeEditPollModal();
+    loadPolls();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function archivePoll(pollId) {
+  if (!confirm('¿Archivar esta encuesta? Ya no aparecerá en la vista principal y no aceptará votos nuevos.')) return;
+
+  try {
+    await apiFetch(`/polls/${pollId}/archive`, { method: 'PATCH' });
+    showToast('Encuesta archivada correctamente.');
     loadPolls();
   } catch (error) {
     showToast(error.message, 'error');

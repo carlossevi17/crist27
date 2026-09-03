@@ -224,13 +224,13 @@ app.get('/api/polls', authenticate, async (req, res) => {
 });
 
 app.post('/api/polls', authenticate, requireAdmin, async (req, res) => {
-  const { question, type, options, isAdminOnly } = req.body;
+  const { question, type, options, isAdminOnly, closesAt } = req.body;
   if (!question || !type || !options || !Array.isArray(options) || options.length < 2) {
     return res.status(400).json({ error: 'Datos de la encuesta inválidos. Debe tener pregunta y al menos 2 opciones.' });
   }
 
   try {
-    const pollId = await db.createPoll(question, type, options, !!isAdminOnly);
+    const pollId = await db.createPoll(question, type, options, !!isAdminOnly, closesAt || null);
     res.status(201).json({ message: 'Encuesta creada correctamente', pollId });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -239,15 +239,25 @@ app.post('/api/polls', authenticate, requireAdmin, async (req, res) => {
 
 app.put('/api/polls/:id', authenticate, requireAdmin, async (req, res) => {
   const pollId = parseInt(req.params.id);
-  const { question, type, isAdminOnly } = req.body;
+  const { question, type, isAdminOnly, closesAt } = req.body;
 
   if (!question || !type) {
     return res.status(400).json({ error: 'La pregunta y el tipo son obligatorios.' });
   }
 
   try {
-    await db.updatePoll(pollId, question, type, !!isAdminOnly);
+    await db.updatePoll(pollId, question, type, !!isAdminOnly, closesAt || null);
     res.json({ message: 'Encuesta actualizada correctamente' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/polls/:id/archive', authenticate, requireAdmin, async (req, res) => {
+  const pollId = parseInt(req.params.id);
+  try {
+    await db.archivePoll(pollId);
+    res.json({ message: 'Encuesta archivada correctamente' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -265,13 +275,20 @@ app.delete('/api/polls/:id', authenticate, requireAdmin, async (req, res) => {
 
 app.post('/api/polls/:id/vote', authenticate, async (req, res) => {
   const pollId = parseInt(req.params.id);
-  const { optionIds } = req.body; // Array of selected option IDs
+  const { optionIds } = req.body;
 
   if (!optionIds || !Array.isArray(optionIds) || optionIds.length === 0) {
     return res.status(400).json({ error: 'Debe seleccionar al menos una opción.' });
   }
 
   try {
+    const poll = await db.getPollById(pollId);
+    if (!poll) return res.status(404).json({ error: 'Encuesta no encontrada.' });
+    if (poll.archived) return res.status(403).json({ error: 'Esta encuesta está archivada y no acepta votos.' });
+    if (poll.closes_at && new Date() > new Date(poll.closes_at)) {
+      return res.status(403).json({ error: 'El plazo de votación de esta encuesta ha finalizado.' });
+    }
+
     await db.submitVotes(pollId, req.user.id, optionIds);
     res.json({ message: 'Voto registrado correctamente' });
   } catch (error) {

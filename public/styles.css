@@ -526,6 +526,41 @@ select option {
 .poll-vote-btn {
   margin-top: 8px;
 }
+.poll-badge-closed {
+  background: var(--warning-glow);
+  color: var(--warning);
+}
+.poll-badge-archived {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-muted);
+}
+.poll-deadline {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 8px 0 4px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+}
+.poll-deadline-closed {
+  color: var(--warning);
+  border-color: var(--warning-glow);
+  background: var(--warning-glow);
+}
+.poll-closed-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-light);
+  border-radius: 8px;
+}
 
 /* Kanban Board */
 .kanban-board {

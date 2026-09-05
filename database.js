@@ -52,10 +52,20 @@ module.exports = {
     return data;
   },
 
-  async createPoll(question, type, options, isAdminOnly = false) {
+  async getPollById(pollId) {
+    const { data, error } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('id', pollId)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async createPoll(question, type, options, isAdminOnly = false, closesAt = null) {
     const { data: poll, error: pollError } = await supabase
       .from('polls')
-      .insert([{ question, type, is_admin_only: isAdminOnly }])
+      .insert([{ question, type, is_admin_only: isAdminOnly, closes_at: closesAt || null }])
       .select()
       .single();
 
@@ -121,7 +131,9 @@ module.exports = {
         totalVotes,
         userVoted: userVotes.length > 0,
         userVotes,
-        is_admin_only: poll.is_admin_only
+        is_admin_only: poll.is_admin_only,
+        closes_at: poll.closes_at || null,
+        archived: poll.archived || false
       });
     }
 
@@ -137,14 +149,24 @@ module.exports = {
     if (error) throw error;
   },
 
-  async updatePoll(pollId, question, type, isAdminOnly) {
+  async updatePoll(pollId, question, type, isAdminOnly, closesAt) {
     const { error } = await supabase
       .from('polls')
       .update({
         question,
         type,
-        is_admin_only: isAdminOnly
+        is_admin_only: isAdminOnly,
+        closes_at: closesAt || null
       })
+      .eq('id', pollId);
+
+    if (error) throw error;
+  },
+
+  async archivePoll(pollId) {
+    const { error } = await supabase
+      .from('polls')
+      .update({ archived: true })
       .eq('id', pollId);
 
     if (error) throw error;
